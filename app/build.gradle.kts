@@ -29,7 +29,7 @@ android {
                 storeFile = file(releaseKeystorePath!!)
                 storePassword = releaseKeystorePassword
                 keyAlias = releaseKeyAlias
-                keyPassword = releaseKeyPassword
+                keyPassword = releaseKeystorePassword
             }
         }
     }
