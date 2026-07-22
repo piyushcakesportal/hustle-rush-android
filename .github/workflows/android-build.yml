@@ -77,6 +77,17 @@ jobs:
         with:
           gradle-version: "8.13"
 
+      - name: Remove old internal namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's/package com\.cakesportal\.hustlerush;/package com.hustlerush.cashrunner;/' \
+            app/src/main/java/com/cakesportal/hustlerush/MainActivity.java \
+            app/src/main/java/com/cakesportal/hustlerush/HustleRushView.java
+          sed -i 's/namespace = "com\.cakesportal\.hustlerush"/namespace = "com.hustlerush.cashrunner"/' app/build.gradle.kts
+          ! grep -R "com.cakesportal.hustlerush" app/src app/build.gradle.kts
+          grep -R "com.hustlerush.cashrunner" app/src/main/java app/build.gradle.kts
+
       - name: Generate private upload key
         shell: bash
         run: |
@@ -127,7 +138,7 @@ jobs:
       - name: Build signed Play Console bundle
         run: gradle --no-daemon :app:clean :app:bundleRelease
 
-      - name: Verify signed bundle and package name
+      - name: Verify signed bundle
         shell: bash
         run: |
           set -euo pipefail
