@@ -1,0 +1,1 @@
+Trigger signed Play Console build for com.hustlerush.cashrunner.
