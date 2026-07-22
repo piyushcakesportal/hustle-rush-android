@@ -1,0 +1,173 @@
+name: Apply Runtime Fix and Build
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply safe runtime patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("app/src/main/java/com/cakesportal/hustlerush/HustleRushView.java")
+          source = path.read_text(encoding="utf-8")
+          original = source
+
+          source = source.replace("import android.view.WindowInsets;\n", "")
+          source = source.replace("import android.view.WindowManager;\n", "")
+
+          source = source.replace(
+              "        toneGenerator = new ToneGenerator(AudioManager.STREAM_MUSIC, 45);",
+              """        ToneGenerator safeToneGenerator = null;
+              try {
+                  safeToneGenerator = new ToneGenerator(AudioManager.STREAM_MUSIC, 45);
+              } catch (Throwable ignored) {
+                  // Some devices cannot initialize an AudioTrack. Run silently instead.
+              }
+              toneGenerator = safeToneGenerator;"""
+          )
+
+          source = source.replace(
+              "        setLayerType(View.LAYER_TYPE_HARDWARE, null);",
+              "        setBackgroundColor(backgroundBottom);"
+          )
+
+          source = re.sub(
+              r"\n        setOnApplyWindowInsetsListener\(\(v, insets\) -> \{.*?\n        \}\);\n",
+              "\n        topInset = 0;\n        bottomInset = 0;\n",
+              source,
+              count=1,
+              flags=re.S,
+          )
+
+          old_audio = """    private void playPickupSound() {
+              if (soundEnabled) toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 55);
+          }
+
+          private void playBillSound() {
+              if (soundEnabled) toneGenerator.startTone(ToneGenerator.TONE_PROP_NACK, 110);
+          }
+
+          private void playShieldSound() {
+              if (soundEnabled) toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, 90);
+          }
+
+          private void playGameOverSound() {
+              if (soundEnabled) toneGenerator.startTone(ToneGenerator.TONE_CDMA_ABBR_ALERT, 260);
+          }
+"""
+
+          new_audio = """    private void playPickupSound() {
+              startToneSafely(ToneGenerator.TONE_PROP_BEEP, 55);
+          }
+
+          private void playBillSound() {
+              startToneSafely(ToneGenerator.TONE_PROP_NACK, 110);
+          }
+
+          private void playShieldSound() {
+              startToneSafely(ToneGenerator.TONE_PROP_ACK, 90);
+          }
+
+          private void playGameOverSound() {
+              startToneSafely(ToneGenerator.TONE_CDMA_ABBR_ALERT, 260);
+          }
+
+          private void startToneSafely(int tone, int durationMs) {
+              if (!soundEnabled || toneGenerator == null) return;
+              try {
+                  toneGenerator.startTone(tone, durationMs);
+              } catch (Throwable ignored) {
+                  // Audio failures must never close the game.
+              }
+          }
+"""
+          source = source.replace(old_audio, new_audio)
+
+          source = source.replace(
+              """    @Override
+          protected void onDetachedFromWindow() {
+              toneGenerator.release();
+              super.onDetachedFromWindow();
+          }
+""",
+              """    @Override
+          protected void onDetachedFromWindow() {
+              if (toneGenerator != null) {
+                  try {
+                      toneGenerator.release();
+                  } catch (Throwable ignored) {
+                      // Ignore device-specific audio cleanup failures.
+                  }
+              }
+              super.onDetachedFromWindow();
+          }
+"""
+          )
+
+          if source != original:
+              path.write_text(source, encoding="utf-8")
+              print("Runtime patch applied.")
+          else:
+              print("Runtime patch already present; no source changes needed.")
+          PY
+
+      - name: Commit runtime source fix
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/src/main/java/com/cakesportal/hustlerush/HustleRushView.java
+            git commit -m "Apply device-safe runtime fix"
+            git push origin HEAD:main
+          else
+            echo "No runtime source changes to commit."
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Build fixed APK and AAB
+        run: gradle --no-daemon :app:assembleDebug :app:bundleRelease
+
+      - name: Upload fixed debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hustle-rush-runtime-fixed-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload fixed release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: hustle-rush-runtime-fixed-aab-unsigned
+          path: app/build/outputs/bundle/release/app-release.aab
