@@ -48,3 +48,102 @@ jobs:
         with:
           name: hustle-rush-release-aab-unsigned
           path: app/build/outputs/bundle/release/app-release.aab
+
+  play-console-release:
+    if: github.event_name == 'pull_request' && github.head_ref == 'agent/play-console-release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 16 SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Generate private upload key
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIGN_DIR="$RUNNER_TEMP/hustle-rush-signing"
+          mkdir -p "$SIGN_DIR"
+          STORE_PASS="$(openssl rand -hex 18)"
+          KEY_PASS="$(openssl rand -hex 18)"
+          KEY_ALIAS="hustlerushupload"
+          KEYSTORE_PATH="$SIGN_DIR/hustle-rush-upload.jks"
+
+          keytool -genkeypair -v \
+            -keystore "$KEYSTORE_PATH" \
+            -storepass "$STORE_PASS" \
+            -keypass "$KEY_PASS" \
+            -alias "$KEY_ALIAS" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Hustle Rush, OU=Mobile, O=Cakesportal, L=New Delhi, ST=Delhi, C=IN"
+
+          {
+            echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH"
+            echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASS"
+            echo "ANDROID_KEY_ALIAS=$KEY_ALIAS"
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASS"
+          } >> "$GITHUB_ENV"
+
+          cat > "$SIGN_DIR/UPLOAD_KEY_CREDENTIALS.txt" <<EOF
+          HUSTLE RUSH UPLOAD KEY — KEEP PRIVATE
+
+          Keystore file: hustle-rush-upload.jks
+          Alias: $KEY_ALIAS
+          Keystore password: $STORE_PASS
+          Key password: $KEY_PASS
+
+          Keep this file and the JKS together. They are required to sign future updates.
+          Do not upload them to a public repository.
+          EOF
+
+          keytool -list -v \
+            -keystore "$KEYSTORE_PATH" \
+            -storepass "$STORE_PASS" \
+            -alias "$KEY_ALIAS" > "$SIGN_DIR/UPLOAD_KEY_CERTIFICATE.txt"
+
+      - name: Build signed Play Console bundle
+        run: gradle --no-daemon :app:clean :app:bundleRelease
+
+      - name: Verify signed bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f app/build/outputs/bundle/release/app-release.aab
+          jarsigner -verify -verbose -certs app/build/outputs/bundle/release/app-release.aab
+          mkdir -p "$RUNNER_TEMP/play-release"
+          cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/play-release/Hustle-Rush-v1.0.1.aab"
+
+      - name: Upload Play Console AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: hustle-rush-play-console-aab
+          path: ${{ runner.temp }}/play-release/Hustle-Rush-v1.0.1.aab
+          if-no-files-found: error
+
+      - name: Upload key backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: hustle-rush-upload-key-backup
+          path: ${{ runner.temp }}/hustle-rush-signing/
+          if-no-files-found: error
