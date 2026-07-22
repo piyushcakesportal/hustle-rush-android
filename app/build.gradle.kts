@@ -16,7 +16,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.cakesportal.hustlerush"
+        applicationId = "com.hustlerush.cashrunner"
         minSdk = 23
         targetSdk = 36
         versionCode = 2
