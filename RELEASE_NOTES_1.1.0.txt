@@ -1,0 +1,8 @@
+Level up your hustle!
+
+• Added 10 progressively harder city missions
+• Earn up to 3 stars and save your unlocked progress
+• Unlock Endless City after completing all missions
+• Added an optional rewarded Continue after a failed run
+• Improved difficulty pacing and mission progress display
+• Added privacy controls for advertising choices where required
