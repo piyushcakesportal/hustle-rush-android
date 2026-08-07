@@ -1,50 +1,64 @@
-# Hustle Rush — Play Console Checklist
+# Hustle Rush 1.1.0 — Play Console Checklist
+
+## Build identity
+
+- Existing Play app/package: `com.hustlerush.cashrunner`
+- Update version: `1.1.0`
+- Update version code: `3`
+- Required signing key: the same upload key used for the live release
+- Upload format: signed Android App Bundle (`.aab`)
 
 ## Before uploading
 
-1. Change `applicationId` only if you want a different permanent package name. Current package: `com.cakesportal.hustlerush`.
-2. Replace the developer contact sentence in `privacy-policy.html` with your public support email.
-3. Upload `privacy-policy.html` to a public HTTPS URL on your website.
-4. Build and test the debug APK on several physical Android phones.
-5. Create your private upload keystore. Never commit it to GitHub.
-6. Build a signed release Android App Bundle (`.aab`).
+1. Test the debug build; it automatically uses Google's sample ad IDs.
+2. Test all 10 mission goals, stars, saved unlocks, Endless City, rewarded Continue, interstitial pacing, pause/resume, sound, and vibration.
+3. Configure and publish applicable consent messages in **AdMob > Privacy & messaging**.
+4. Replace the currently hosted privacy policy with the included updated `privacy-policy.html`.
+5. Confirm AdMob app-store details are linked to the live Play listing when indexing becomes available.
+6. Build a signed release AAB with the existing Play upload key.
 
-## Recommended Play Console answers for version 1.0
+## Play Console declarations to review
 
-These answers are valid only while the supplied source remains unchanged:
+These must describe version 1.1.0, not the old ad-free version:
 
-- App or game: Game
-- Category: Casual
-- Ads: No
-- App access: All functionality is available without access restrictions
-- Data collection: No user data collected or shared
-- Account creation: No
-- Target audience: Adults / general audience; do not market specifically to children
-- Internet permission: Not used
+- **Contains ads:** Yes
+- **App access:** All core gameplay is available without login or access restrictions
+- **Account creation:** No
+- **Target audience:** General/adult audience; do not select children unless the app, ads, content, and Families policies are fully configured for children
+- **Permissions:** Internet and network state for ads; vibration for optional haptics
+- **Data safety:** Update for Google Mobile Ads SDK data practices. Review Google's current disclosure page and your actual AdMob configuration before submitting; do not leave “No data collected” from version 1.0.
+- **Privacy policy:** Use the newly hosted August 7, 2026 policy URL
 
-## Store listing draft
+## Production update flow
 
-**App name:** Hustle Rush
+1. Open **Play Console > Hustle Rush > Production**.
+2. Choose **Create new release**.
+3. Upload the signed version-code-3 AAB.
+4. Use release name `Hustle Rush 1.1.0`.
+5. Paste the release notes from `RELEASE_NOTES_1.1.0.txt`.
+6. Resolve blocking errors, save, review the release, and send it for review.
+7. If Managed publishing is enabled, publish after Google approves it.
 
-**Short description:** Collect income, dodge expenses, and survive until your wallet hits zero.
+## Updated store-listing draft
+
+**Short description:** Complete cash missions, dodge expenses, unlock levels, and build your fortune.
 
 **Full description:**
 
-Hustle Rush is a fast offline cash-survival runner. Switch between three city lanes, collect income bundles, build cash combos, and avoid tax, rent, EMI, fuel, and fines. Every expense deducts the exact amount shown, so one hit does not end the run. You lose only when your wallet reaches zero.
+Hustle Rush is a fast cash-survival runner where every rupee matters. Switch between three city lanes, collect income, build combo multipliers, and avoid tax, rent, EMI, fuel, and fines. Expenses deduct the amount shown—you lose only when your wallet reaches zero.
 
-Your score is the highest cash balance reached during the run. The city becomes faster over time, forcing quicker lane changes and better risk decisions. Rare shields can block an expense and help extend a strong run.
+Take on 10 increasingly challenging city missions. Reach each distance target, protect your wallet, earn up to three stars, and unlock Endless City. Rare shields block an expense, while smart lane changes and bigger combos help you finish with more cash.
 
 Features:
-- Fast three-lane endless gameplay
-- Expenses deduct cash instead of causing instant failure
+- 10 progressive cash-survival missions
+- Up to three stars per level
+- Unlockable Endless City mode
+- Three-lane tap and swipe controls
 - Cash combo multiplier up to x5
-- Rare protective shields
-- Persistent all-time best score
-- Smooth tap and swipe controls
+- Protective shields and varied expenses
+- Saved progress and all-time best cash
+- Optional rewarded Continue after a failed run
 - Sound and vibration controls
-- Fully offline play
-- No login and no personal data collection
+- No login required
 
-## Release notes 1.0.0
-
-Initial release of Hustle Rush with endless cash-survival gameplay, combo rewards, shields, persistent high score, sound and haptic settings, and offline play.
+Contains ads.

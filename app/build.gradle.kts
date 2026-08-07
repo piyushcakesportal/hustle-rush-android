@@ -19,8 +19,9 @@ android {
         applicationId = "com.hustlerush.cashrunner"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.1.0"
+        manifestPlaceholders["admobAppId"] = "ca-app-pub-8512097229727629~4157317521"
     }
 
     signingConfigs {
@@ -35,6 +36,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+        }
         release {
             isMinifyEnabled = false
             isShrinkResources = false
@@ -52,4 +56,13 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    buildFeatures {
+        buildConfig = true
+    }
+}
+
+dependencies {
+    implementation("com.google.android.gms:play-services-ads:25.4.0")
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
 }

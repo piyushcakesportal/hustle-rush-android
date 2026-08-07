@@ -1,51 +1,47 @@
-# GitHub Signed AAB Setup
+# GitHub signed AAB setup for the existing Play app
 
-The normal `Build Android` workflow creates a debug APK for testing and an unsigned release bundle. Play Console needs the signed bundle produced by `Build Signed Play Bundle`.
+The live package `com.hustlerush.cashrunner` must be updated with the **same Play upload key** used for version code 2. Do not generate a new key.
 
-## 1. Create an upload keystore
+Your uploaded `Hustle-Rush-cashrunner-CORRECT-Play-Package` archive contains the correct upload-key backup. Keep that archive private and never commit the key or its passwords to GitHub.
 
-Run this once on a trusted computer with Java installed:
+## 1. Prepare the existing keystore
 
-```bash
-keytool -genkeypair -v \
-  -keystore hustle-rush-upload.jks \
-  -alias hustle-rush \
-  -keyalg RSA -keysize 2048 -validity 10000
-```
+Extract the upload-key backup on a trusted computer. Use the keystore file, alias, store password, and key password recorded with that backup.
 
-Keep this file and its passwords backed up privately. Never upload it as a repository file.
-
-## 2. Convert the keystore to Base64
+## 2. Convert only the keystore file to Base64
 
 ### Windows PowerShell
 
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("hustle-rush-upload.jks")) | Set-Clipboard
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("existing-upload-key.jks")) | Set-Clipboard
 ```
 
 ### macOS
 
 ```bash
-base64 -i hustle-rush-upload.jks | pbcopy
+base64 -i existing-upload-key.jks | pbcopy
 ```
 
 ### Linux
 
 ```bash
-base64 -w 0 hustle-rush-upload.jks
+base64 -w 0 existing-upload-key.jks
 ```
 
-## 3. Add GitHub repository secrets
+## 3. Add private GitHub Actions secrets
 
-Go to **Repository > Settings > Secrets and variables > Actions** and create:
+Under **Repository > Settings > Secrets and variables > Actions**, create:
 
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-## 4. Build the Play bundle
+Never paste these values into source files or commit them.
 
-Open **Actions > Build Signed Play Bundle > Run workflow**.
+## 4. Build and verify
 
-Download the `hustle-rush-play-console-aab` artifact and upload its `.aab` file to the Play Console internal testing track first.
+1. Open **Actions > Build Signed Play Bundle > Run workflow**.
+2. Download `hustle-rush-play-console-aab`.
+3. Upload it to an Internal testing release first. Play Console will reject it immediately if the package or signing key is wrong.
+4. After device testing, use the same AAB or promote the tested release to Production.
