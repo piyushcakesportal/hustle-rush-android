@@ -2,6 +2,9 @@ name: Build Signed Play Bundle
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   signed-release:
