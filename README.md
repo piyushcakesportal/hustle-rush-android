@@ -15,7 +15,7 @@ Native Android cash-survival runner updated with mission progression and AdMob m
 ## Project identity
 
 - Play package: `com.hustlerush.cashrunner`
-- Version: `1.1.0` (`versionCode 3`)
+- Version: `1.1.0` (`versionCode 4`)
 - Minimum Android: API 23
 - Target Android: API 36
 - Language: Java 17
