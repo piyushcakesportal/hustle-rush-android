@@ -19,7 +19,7 @@ android {
         applicationId = "com.hustlerush.cashrunner"
         minSdk = 23
         targetSdk = 36
-        versionCode = 3
+        versionCode = 4
         versionName = "1.1.0"
         manifestPlaceholders["admobAppId"] = "ca-app-pub-8512097229727629~4157317521"
     }
