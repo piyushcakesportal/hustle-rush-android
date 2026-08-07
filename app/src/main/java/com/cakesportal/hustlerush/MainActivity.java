@@ -9,8 +9,6 @@ import android.view.Window;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 
-import androidx.annotation.NonNull;
-
 public final class MainActivity extends Activity implements HustleRushView.AdHost {
     private HustleRushView gameView;
 
@@ -50,12 +48,12 @@ public final class MainActivity extends Activity implements HustleRushView.AdHos
     }
 
     @Override
-    public void showRewardedContinue(@NonNull Runnable onRewarded, @NonNull Runnable onUnavailable) {
+    public void showRewardedContinue(Runnable onRewarded, Runnable onUnavailable) {
         onUnavailable.run();
     }
 
     @Override
-    public void maybeShowInterstitial(@NonNull Runnable afterAd) {
+    public void maybeShowInterstitial(Runnable afterAd) {
         afterAd.run();
     }
 
