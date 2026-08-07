@@ -1,7 +1,8 @@
 App name: Hustle Rush
 
-Short description (80 chars max):
-Collect income, dodge expenses, and survive until your wallet hits zero.
+Short description:
+Complete cash missions, dodge expenses, unlock levels, and build your fortune.
 
-Category: Casual
-Ads: No
+Contains ads: Yes
+
+See PLAY_CONSOLE_CHECKLIST.md for the full updated description and declarations.
