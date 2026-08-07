@@ -23,7 +23,6 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 import com.google.android.ump.ConsentInformation;
 import com.google.android.ump.ConsentRequestParameters;
 import com.google.android.ump.FormError;
-import com.google.android.ump.PrivacyOptionsRequirementStatus;
 import com.google.android.ump.UserMessagingPlatform;
 
 public final class MainActivity extends Activity implements HustleRushView.AdHost {
@@ -210,7 +209,7 @@ public final class MainActivity extends Activity implements HustleRushView.AdHos
     public boolean isPrivacyOptionsRequired() {
         return consentInformation != null
                 && consentInformation.getPrivacyOptionsRequirementStatus()
-                == PrivacyOptionsRequirementStatus.REQUIRED;
+                == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED;
     }
 
     @Override
