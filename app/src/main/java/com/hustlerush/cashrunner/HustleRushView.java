@@ -24,8 +24,16 @@ import java.util.Locale;
 import java.util.Random;
 
 public final class HustleRushView extends View {
+    public interface AdHost {
+        boolean isRewardedAdReady();
+        void showRewardedContinue(Runnable onReward);
+        void showBreakInterstitial(Runnable afterAd);
+        boolean isPrivacyOptionsRequired();
+        void showPrivacyOptions();
+    }
+
     private enum Screen { MENU, HOW_TO, PRIVACY, PLAYING, PAUSED, GAME_OVER, LEVEL_COMPLETE }
-    private enum EntityType { CASH, BILL, SHIELD }
+    private enum EntityType { CASH, BILL, SHIELD, BOOST }
 
     private static final int STARTING_CASH = 300;
     private static final int MAX_COMBO = 5;
@@ -42,6 +50,18 @@ public final class HustleRushView extends View {
             "BIG CITY", "STARTUP GRIND", "MARKET CRASH", "MILLIONAIRE MILE", "ULTIMATE HUSTLE"
     };
     private static final int[] LEVEL_TARGETS = {300, 420, 560, 720, 900, 1100, 1320, 1560, 1820, 2100};
+    private static final String[] LEVEL_RULES = {
+            "RUSH GATES FROM THE START", "RENT HITS HARDER", "EMI WAVES • MORE SHIELDS",
+            "TAX WALLS • TIGHT GAPS", "FASTEST SPEED RAMP", "DOUBLE-BILL CITY",
+            "COMBO CHASE • MORE BOOSTS", "LOW CASH • MARKET PANIC",
+            "HUGE REWARDS • HUGE RISK", "EVERY RULE • NO MERCY"
+    };
+    private static final float[] LEVEL_START_SPEED = {275f, 292f, 305f, 318f, 334f, 325f, 342f, 350f, 365f, 382f};
+    private static final float[] LEVEL_SPEED_RAMP = {0.25f, 0.28f, 0.25f, 0.31f, 0.42f, 0.34f, 0.36f, 0.40f, 0.43f, 0.48f};
+    private static final float[] LEVEL_SPAWN_GAP = {0.66f, 0.64f, 0.62f, 0.60f, 0.58f, 0.59f, 0.57f, 0.55f, 0.53f, 0.50f};
+    private static final float[] LEVEL_CASH_CHANCE = {0.53f, 0.47f, 0.51f, 0.45f, 0.50f, 0.46f, 0.55f, 0.42f, 0.53f, 0.45f};
+    private static final float[] LEVEL_BILL_MULTIPLIER = {1.0f, 1.35f, 1.18f, 1.30f, 1.12f, 1.28f, 1.20f, 1.42f, 1.35f, 1.50f};
+    private static final float[] LEVEL_CASH_MULTIPLIER = {1.0f, 1.0f, 1.05f, 1.0f, 1.10f, 1.0f, 1.18f, 0.95f, 1.35f, 1.20f};
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -53,6 +73,7 @@ public final class HustleRushView extends View {
     private final SharedPreferences preferences;
     private final Vibrator vibrator;
     private final ToneGenerator toneGenerator;
+    private final AdHost adHost;
 
     private final RectF primaryButton = new RectF();
     private final RectF secondaryLeftButton = new RectF();
@@ -63,6 +84,8 @@ public final class HustleRushView extends View {
     private final RectF homeButton = new RectF();
     private final RectF levelLeftButton = new RectF();
     private final RectF levelRightButton = new RectF();
+    private final RectF rewardButton = new RectF();
+    private final RectF privacyOptionsButton = new RectF();
 
     private Screen screen = Screen.MENU;
     private int topInset;
@@ -75,6 +98,8 @@ public final class HustleRushView extends View {
     private float roadOffset;
     private float shakeTime;
     private float comboTimer;
+    private float boostTimer;
+    private float eventBannerTimer;
     private float spawnTimer;
     private float distance;
     private float speed;
@@ -96,9 +121,12 @@ public final class HustleRushView extends View {
     private int selectedLevel;
     private int activeLevel;
     private int levelCompleteStars;
+    private int challengePhase;
+    private String eventBanner = "";
     private boolean soundEnabled;
     private boolean hapticEnabled;
     private boolean firstFrame = true;
+    private boolean continueUsed;
 
     private final int backgroundTop = Color.rgb(15, 17, 41);
     private final int backgroundBottom = Color.rgb(5, 8, 20);
@@ -115,8 +143,9 @@ public final class HustleRushView extends View {
     private final int road = Color.rgb(22, 25, 46);
     private final int roadLine = Color.rgb(80, 85, 122);
 
-    public HustleRushView(Context context) {
+    public HustleRushView(Context context, AdHost adHost) {
         super(context);
+        this.adHost = adHost;
         density = getResources().getDisplayMetrics().density;
         preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         allTimeBest = preferences.getInt(PREF_BEST, 0);
@@ -200,9 +229,24 @@ public final class HustleRushView extends View {
 
     private void updateGame(float dt) {
         if (dt <= 0f) return;
+        int levelIndex = Math.min(activeLevel, LEVEL_NAMES.length - 1);
+        float levelTarget = activeLevel == ENDLESS_INDEX ? LEVEL_TARGETS[9] : LEVEL_TARGETS[levelIndex];
+        float progress = clamp(distance / levelTarget, 0f, 1f);
         distance += dt * 20f;
-        float levelBoost = activeLevel == ENDLESS_INDEX ? 100f : activeLevel * 9f;
-        speed = dp(225f + levelBoost) + dp(distance * 0.13f);
+        boostTimer = Math.max(0f, boostTimer - dt);
+        eventBannerTimer = Math.max(0f, eventBannerTimer - dt);
+
+        int nextPhase = progress >= 0.72f ? 2 : progress >= 0.35f ? 1 : 0;
+        if (nextPhase > challengePhase) {
+            challengePhase = nextPhase;
+            announceEvent(nextPhase == 1 ? "PRESSURE RISING" : "FINAL SPRINT");
+        }
+
+        float phaseBoost = challengePhase == 2 ? 82f : challengePhase == 1 ? 34f : 0f;
+        float endlessBoost = activeLevel == ENDLESS_INDEX ? Math.min(150f, distance * 0.06f) : 0f;
+        speed = dp(LEVEL_START_SPEED[levelIndex]
+                + distance * LEVEL_SPEED_RAMP[levelIndex]
+                + phaseBoost + endlessBoost);
         roadOffset = (roadOffset + speed * dt) % dp(90f);
         spawnTimer -= dt;
         comboTimer = Math.max(0f, comboTimer - dt);
@@ -215,8 +259,10 @@ public final class HustleRushView extends View {
 
         if (spawnTimer <= 0f) {
             spawnPattern();
-            float difficulty = Math.min(0.39f, distance / 2500f + activeLevel * 0.018f);
-            spawnTimer = 0.86f - difficulty + random.nextFloat() * 0.14f;
+            float phaseReduction = challengePhase * 0.055f;
+            float progressReduction = progress * 0.11f;
+            spawnTimer = Math.max(0.34f, LEVEL_SPAWN_GAP[levelIndex]
+                    - phaseReduction - progressReduction + random.nextFloat() * 0.10f);
         }
 
         for (Entity entity : entities) {
@@ -267,26 +313,50 @@ public final class HustleRushView extends View {
     }
 
     private void spawnPattern() {
+        int levelIndex = Math.min(activeLevel, LEVEL_NAMES.length - 1);
         int stage = (int) (distance / 450f) + activeLevel * 2;
-        float moneyChance = Math.max(0.40f, 0.61f - distance / 7000f - activeLevel * 0.009f);
-        boolean doublePattern = distance > 160f && random.nextFloat() < 0.24f;
+        float moneyChance = Math.max(0.34f, LEVEL_CASH_CHANCE[levelIndex] - distance / 9000f);
+        float powerUpRoll = random.nextFloat();
+        float boostChance = levelIndex == 6 ? 0.075f : 0.035f;
+        float shieldChance = levelIndex == 2 ? 0.085f : 0.045f;
+        int powerLane = random.nextInt(3);
+        if (distance > 35f && powerUpRoll < boostChance) {
+            entities.add(Entity.boost(powerLane, roadTop() - dp(48f)));
+            return;
+        }
+        if (distance > 28f && powerUpRoll < boostChance + shieldChance) {
+            entities.add(Entity.shield(powerLane, roadTop() - dp(48f)));
+            return;
+        }
 
-        if (doublePattern) {
+        float patternRoll = random.nextFloat();
+        float gateChance = 0.38f + levelIndex * 0.012f + challengePhase * 0.08f;
+        if (patternRoll < gateChance) {
             int safeLane = random.nextInt(3);
             for (int lane = 0; lane < 3; lane++) {
                 if (lane == safeLane) continue;
-                if (random.nextFloat() < 0.62f) addBill(lane, stage, lane == 2 ? dp(-22f) : 0f);
-                else addCash(lane, stage, lane == 2 ? dp(-22f) : 0f);
+                addBill(lane, stage, 0f);
             }
-            if (random.nextFloat() < 0.72f) addCash(safeLane, stage, dp(-48f));
+            addCash(safeLane, stage, dp(-8f));
+
+            if (distance > 55f && random.nextFloat() < 0.42f + challengePhase * 0.12f) {
+                int secondSafeLane = (safeLane + (random.nextBoolean() ? 1 : 2)) % 3;
+                for (int lane = 0; lane < 3; lane++) {
+                    if (lane != secondSafeLane) addBill(lane, stage + 1, dp(-112f));
+                }
+                addCash(secondSafeLane, stage + 1, dp(-120f));
+            }
+            return;
+        }
+
+        if (patternRoll < gateChance + 0.10f) {
+            for (int lane = 0; lane < 3; lane++) addCash(lane, stage + 1, lane == 1 ? dp(-16f) : 0f);
             return;
         }
 
         int lane = random.nextInt(3);
         float roll = random.nextFloat();
-        if (roll < 0.035f && distance > 120f) {
-            entities.add(Entity.shield(lane, roadTop() - dp(48f)));
-        } else if (roll < moneyChance) {
+        if (roll < moneyChance) {
             addCash(lane, stage, 0f);
         } else {
             addBill(lane, stage, 0f);
@@ -295,16 +365,34 @@ public final class HustleRushView extends View {
 
     private void addCash(int lane, int stage, float yOffset) {
         int[] values = {50, 75, 100, 150, 200};
-        int value = values[random.nextInt(values.length)] + Math.min(150, stage * 10);
+        int levelIndex = Math.min(activeLevel, LEVEL_NAMES.length - 1);
+        int value = Math.round((values[random.nextInt(values.length)] + Math.min(150, stage * 10))
+                * LEVEL_CASH_MULTIPLIER[levelIndex]);
         entities.add(Entity.cash(lane, roadTop() - dp(48f) + yOffset, value));
     }
 
     private void addBill(int lane, int stage, float yOffset) {
         String[] names = {"TAX", "RENT", "EMI", "FUEL", "FINE"};
         int[] bases = {100, 150, 125, 60, 75};
-        int index = random.nextInt(names.length);
-        int scaled = bases[index] + Math.min(225, stage * 15);
+        int levelIndex = Math.min(activeLevel, LEVEL_NAMES.length - 1);
+        int index = switch (levelIndex) {
+            case 1 -> 1;
+            case 2 -> 2;
+            case 3 -> 0;
+            case 4 -> 3;
+            case 7 -> random.nextBoolean() ? 0 : 4;
+            default -> random.nextInt(names.length);
+        };
+        int scaled = Math.round((bases[index] + Math.min(225, stage * 15))
+                * LEVEL_BILL_MULTIPLIER[levelIndex]);
         entities.add(Entity.bill(lane, roadTop() - dp(52f) + yOffset, names[index], scaled));
+    }
+
+    private void announceEvent(String label) {
+        eventBanner = label;
+        eventBannerTimer = 2.1f;
+        addBurst(width / 2f, roadTop() + dp(80f), label.startsWith("FINAL") ? danger : warning, 22);
+        vibrate(45, 95);
     }
 
     private void handleCollision(Entity entity) {
@@ -312,12 +400,14 @@ public final class HustleRushView extends View {
             comboTimer = 2.35f;
             combo = Math.min(MAX_COMBO, combo + 1);
             runBestCombo = Math.max(runBestCombo, combo);
-            int earned = entity.value * combo;
+            int boostMultiplier = boostTimer > 0f ? 2 : 1;
+            int earned = entity.value * combo * boostMultiplier;
             cash += earned;
             runPeak = Math.max(runPeak, cash);
             collectedCount++;
             addBurst(entity.x, entity.y, cashGreen, 13);
-            addFloatingText("+₹" + earned + "  x" + combo, entity.x, entity.y, cashGreen);
+            addFloatingText("+₹" + earned + "  x" + combo + (boostMultiplier > 1 ? " BOOST" : ""),
+                    entity.x, entity.y, cashGreen);
             playPickupSound();
             vibrate(18, 60);
         } else if (entity.type == EntityType.SHIELD) {
@@ -326,6 +416,12 @@ public final class HustleRushView extends View {
             addFloatingText("SHIELD +1", entity.x, entity.y, cyan);
             playShieldSound();
             vibrate(35, 90);
+        } else if (entity.type == EntityType.BOOST) {
+            boostTimer = 6.5f;
+            addBurst(entity.x, entity.y, warning, 20);
+            addFloatingText("INCOME x2", entity.x, entity.y, warning);
+            playShieldSound();
+            vibrate(55, 120);
         } else {
             if (shieldCharges > 0) {
                 shieldCharges--;
@@ -397,12 +493,17 @@ public final class HustleRushView extends View {
         combo = 1;
         runBestCombo = 1;
         comboTimer = 0f;
+        boostTimer = 0f;
+        eventBannerTimer = 0f;
+        eventBanner = "";
+        challengePhase = 0;
+        continueUsed = false;
         collectedCount = 0;
         billsPaid = 0;
         shieldCharges = 0;
         activeLevel = selectedLevel;
-        spawnTimer = 0.45f;
-        speed = dp(235f);
+        spawnTimer = 0.22f;
+        speed = dp(LEVEL_START_SPEED[Math.min(activeLevel, LEVEL_NAMES.length - 1)]);
         shakeTime = 0f;
         playerLane = 1;
         updatePlayerGeometry();
@@ -607,14 +708,17 @@ public final class HustleRushView extends View {
         if (selectedLevel == ENDLESS_INDEX) {
             drawCenteredText(canvas, "ENDLESS CITY", width / 2f, missionCard.top + dp(29f), dp(12f), accentLight, true);
             drawCenteredText(canvas, "NO FINISH LINE", width / 2f, missionCard.top + dp(60f), dp(20f), textPrimary, true);
-            drawCenteredText(canvas, "Unlocked after all 10 missions", width / 2f, missionCard.top + dp(86f), dp(11f), textMuted, false);
+            drawCenteredText(canvas, "SPEED KEEPS RISING • ALL PATTERNS", width / 2f, missionCard.top + dp(86f), dp(10.5f), warning, true);
         } else {
             int stars = preferences.getInt(PREF_LEVEL_STARS + selectedLevel, 0);
             drawCenteredText(canvas, "LEVEL " + (selectedLevel + 1) + "  •  " + LEVEL_NAMES[selectedLevel], width / 2f, missionCard.top + dp(29f), dp(11.5f), accentLight, true);
-            drawCenteredText(canvas, "SURVIVE " + LEVEL_TARGETS[selectedLevel] + " m", width / 2f, missionCard.top + dp(60f), dp(20f), textPrimary, true);
-            drawCenteredText(canvas, starsText(stars) + "  •  Best ₹" + allTimeBest, width / 2f, missionCard.top + dp(88f), dp(11f), stars > 0 ? warning : textMuted, true);
+            drawCenteredText(canvas, "SURVIVE " + LEVEL_TARGETS[selectedLevel] + " m", width / 2f, missionCard.top + dp(56f), dp(19f), textPrimary, true);
+            drawCenteredText(canvas, LEVEL_RULES[selectedLevel], width / 2f, missionCard.top + dp(82f), dp(10.2f), warning, true);
+            drawCenteredText(canvas, starsText(stars) + "  •  Best ₹" + allTimeBest, width / 2f, missionCard.top + dp(108f), dp(10.5f), stars > 0 ? warning : textMuted, true);
         }
-        drawCenteredText(canvas, "Unlocked " + (Math.min(unlockedLevel, 9) + 1) + "/10", width / 2f, missionCard.top + dp(112f), dp(9.5f), textMuted, false);
+        if (selectedLevel == ENDLESS_INDEX) {
+            drawCenteredText(canvas, "ALL 10 MISSIONS COMPLETE", width / 2f, missionCard.top + dp(112f), dp(9.5f), textMuted, false);
+        }
 
         float buttonTop = cardTop + dp(145f);
         primaryButton.set(dp(22f), buttonTop, width - dp(22f), buttonTop + dp(62f));
@@ -641,6 +745,7 @@ public final class HustleRushView extends View {
         drawParticles(canvas);
         drawPlayer(canvas);
         drawGameHud(canvas);
+        drawEventBanner(canvas);
         if (frozen) {
             paint.setColor(Color.argb(70, 5, 8, 20));
             canvas.drawRect(0, 0, width, height, paint);
@@ -669,9 +774,26 @@ public final class HustleRushView extends View {
                 ? "ENDLESS  •  " + Math.round(distance) + " m"
                 : "L" + (activeLevel + 1) + "  •  " + Math.round(distance) + "/" + LEVEL_TARGETS[activeLevel] + " m";
         drawSmallBadge(canvas, dp(14f), infoY, progress, textPrimary);
-        String shieldText = shieldCharges > 0 ? "SHIELD x" + shieldCharges : String.format(Locale.US, "SPEED %.1fx", speed / dp(235f));
+        String shieldText = boostTimer > 0f
+                ? String.format(Locale.US, "BOOST x2 %.1fs", boostTimer)
+                : shieldCharges > 0 ? "SHIELD x" + shieldCharges
+                : String.format(Locale.US, "SPEED %.1fx", speed / dp(275f));
         float badgeWidth = textWidth(shieldText, dp(11f), true) + dp(22f);
-        drawSmallBadge(canvas, width - dp(14f) - badgeWidth, infoY, shieldText, shieldCharges > 0 ? cyan : textPrimary);
+        int badgeColor = boostTimer > 0f ? warning : shieldCharges > 0 ? cyan : textPrimary;
+        drawSmallBadge(canvas, width - dp(14f) - badgeWidth, infoY, shieldText, badgeColor);
+    }
+
+    private void drawEventBanner(Canvas canvas) {
+        if (eventBannerTimer <= 0f || eventBanner.isEmpty()) return;
+        float alphaProgress = clamp(eventBannerTimer / 0.45f, 0f, 1f);
+        int bannerColor = eventBanner.startsWith("FINAL") ? danger : warning;
+        float bannerWidth = Math.min(width - dp(56f), dp(285f));
+        RectF banner = new RectF((width - bannerWidth) / 2f, roadTop() + dp(24f),
+                (width + bannerWidth) / 2f, roadTop() + dp(70f));
+        paint.setAlpha((int) (235 * alphaProgress));
+        drawPanel(canvas, banner, dp(20f), Color.rgb(35, 30, 53), bannerColor);
+        paint.setAlpha(255);
+        drawCenteredText(canvas, eventBanner, width / 2f, banner.centerY() + dp(5f), dp(14f), bannerColor, true);
     }
 
     private void drawEntity(Canvas canvas, Entity entity) {
@@ -685,8 +807,10 @@ public final class HustleRushView extends View {
             drawCashBundle(canvas, entity.value);
         } else if (entity.type == EntityType.BILL) {
             drawBillCard(canvas, entity.name, entity.value);
-        } else {
+        } else if (entity.type == EntityType.SHIELD) {
             drawShieldToken(canvas);
+        } else {
+            drawBoostToken(canvas);
         }
         canvas.restore();
     }
@@ -727,6 +851,17 @@ public final class HustleRushView extends View {
         path.close();
         canvas.drawPath(path, paint);
         drawCenteredText(canvas, "S", 0, dp(3f), dp(20f), Color.WHITE, true);
+    }
+
+    private void drawBoostToken(Canvas canvas) {
+        paint.setColor(Color.argb(65, 255, 190, 92));
+        canvas.drawCircle(0, 0, dp(40f), paint);
+        paint.setColor(warning);
+        canvas.drawCircle(0, 0, dp(29f), paint);
+        strokePaint.setColor(Color.WHITE);
+        strokePaint.setStrokeWidth(dp(2.2f));
+        canvas.drawCircle(0, 0, dp(29f), strokePaint);
+        drawCenteredText(canvas, "2x", 0, dp(5f), dp(18f), Color.rgb(45, 32, 20), true);
     }
 
     private void drawPlayer(Canvas canvas) {
@@ -846,11 +981,23 @@ public final class HustleRushView extends View {
         drawText(canvas, "All-time best", left + dp(28f), detailsY + dp(56f), dp(12.5f), textMuted, false, Paint.Align.LEFT);
         drawText(canvas, "₹" + allTimeBest, card.right - dp(28f), detailsY + dp(56f), dp(13f), cashGreen, true, Paint.Align.RIGHT);
 
-        float buttonsTop = Math.min(bottom - dp(136f), detailsY + dp(82f));
-        primaryButton.set(left + dp(18f), buttonsTop, card.right - dp(18f), buttonsTop + dp(58f));
-        homeButton.set(left + dp(18f), buttonsTop + dp(72f), card.right - dp(18f), buttonsTop + dp(124f));
-        drawGradientButton(canvas, primaryButton, "RUN AGAIN", "↻", accent, accentLight);
-        drawOutlineButton(canvas, homeButton, "HOME", "⌂");
+        boolean rewardReady = !continueUsed && adHost != null && adHost.isRewardedAdReady();
+        if (rewardReady) {
+            float buttonsTop = Math.min(bottom - dp(202f), detailsY + dp(76f));
+            rewardButton.set(left + dp(18f), buttonsTop, card.right - dp(18f), buttonsTop + dp(58f));
+            primaryButton.set(left + dp(18f), buttonsTop + dp(70f), card.right - dp(18f), buttonsTop + dp(126f));
+            homeButton.set(left + dp(18f), buttonsTop + dp(138f), card.right - dp(18f), buttonsTop + dp(190f));
+            drawGradientButton(canvas, rewardButton, "WATCH AD • CONTINUE", "▶", warning, Color.rgb(255, 220, 120));
+            drawOutlineButton(canvas, primaryButton, "START OVER", "↻");
+            drawOutlineButton(canvas, homeButton, "HOME", "⌂");
+        } else {
+            rewardButton.setEmpty();
+            float buttonsTop = Math.min(bottom - dp(136f), detailsY + dp(82f));
+            primaryButton.set(left + dp(18f), buttonsTop, card.right - dp(18f), buttonsTop + dp(58f));
+            homeButton.set(left + dp(18f), buttonsTop + dp(72f), card.right - dp(18f), buttonsTop + dp(124f));
+            drawGradientButton(canvas, primaryButton, "RUN AGAIN", "↻", accent, accentLight);
+            drawOutlineButton(canvas, homeButton, "HOME", "⌂");
+        }
     }
 
     private void drawLevelCompleteOverlay(Canvas canvas) {
@@ -916,9 +1063,15 @@ public final class HustleRushView extends View {
         y += dp(31f);
         drawBullet(canvas, x, y, "Sound and vibration settings");
         y += dp(48f);
-        drawText(canvas, "This stability build has no advertising SDK, analytics, account system, location access or personal-data collection.", x, y, dp(13f), textMuted, false, Paint.Align.LEFT, card.width() - dp(40f));
-        y += dp(96f);
+        drawText(canvas, "This version uses Google Mobile Ads for rewarded and game-over advertisements. The ads service may process device identifiers, approximate location, diagnostics and ad interactions according to consent and device settings.", x, y, dp(13f), textMuted, false, Paint.Align.LEFT, card.width() - dp(40f));
+        y += dp(132f);
         drawText(canvas, "Developer: Hustle Rush", x, y, dp(12.5f), textMuted, false, Paint.Align.LEFT);
+        if (adHost != null && adHost.isPrivacyOptionsRequired()) {
+            privacyOptionsButton.set(card.left + dp(18f), card.bottom - dp(72f), card.right - dp(18f), card.bottom - dp(18f));
+            drawOutlineButton(canvas, privacyOptionsButton, "PRIVACY CHOICES", "i");
+        } else {
+            privacyOptionsButton.setEmpty();
+        }
     }
 
     private void drawBackHeader(Canvas canvas, String title, float top) {
@@ -1156,6 +1309,7 @@ public final class HustleRushView extends View {
             if (homeButton.contains(x, y)) screen = Screen.MENU;
         } else if (screen == Screen.PRIVACY) {
             if (homeButton.contains(x, y)) screen = Screen.MENU;
+            else if (privacyOptionsButton.contains(x, y) && adHost != null) adHost.showPrivacyOptions();
         } else if (screen == Screen.PAUSED) {
             if (primaryButton.contains(x, y)) {
                 screen = Screen.PLAYING;
@@ -1163,13 +1317,17 @@ public final class HustleRushView extends View {
                 firstFrame = true;
             } else if (homeButton.contains(x, y)) goHome();
         } else if (screen == Screen.GAME_OVER) {
-            if (primaryButton.contains(x, y)) startRun();
+            if (rewardButton.contains(x, y) && adHost != null && adHost.isRewardedAdReady()) {
+                adHost.showRewardedContinue(this::reviveAfterReward);
+            } else if (primaryButton.contains(x, y)) {
+                showBreakAdThen(this::startRun);
+            }
             else if (homeButton.contains(x, y)) goHome();
         } else if (screen == Screen.LEVEL_COMPLETE) {
             if (primaryButton.contains(x, y)) {
                 selectedLevel = Math.min(ENDLESS_INDEX, activeLevel + 1);
                 saveSelectedLevel();
-                startRun();
+                showBreakAdThen(this::startRun);
             } else if (homeButton.contains(x, y)) {
                 selectedLevel = Math.min(ENDLESS_INDEX, activeLevel + 1);
                 saveSelectedLevel();
@@ -1177,6 +1335,32 @@ public final class HustleRushView extends View {
             }
         }
         invalidate();
+    }
+
+    private void reviveAfterReward() {
+        if (screen != Screen.GAME_OVER || continueUsed) return;
+        continueUsed = true;
+        cash = 450 + Math.min(350, activeLevel * 35);
+        runPeak = Math.max(runPeak, cash);
+        shieldCharges = Math.max(1, shieldCharges);
+        combo = 1;
+        comboTimer = 0f;
+        entities.clear();
+        spawnTimer = 0.55f;
+        screen = Screen.PLAYING;
+        setKeepScreenOn(true);
+        firstFrame = true;
+        announceEvent("SECOND CHANCE");
+        invalidate();
+    }
+
+    private void showBreakAdThen(Runnable action) {
+        if (adHost == null) action.run();
+        else adHost.showBreakInterstitial(action);
+    }
+
+    public void refreshAdState() {
+        postInvalidateOnAnimation();
     }
 
     private void selectLevel(int direction) {
@@ -1317,10 +1501,14 @@ public final class HustleRushView extends View {
             return new Entity(EntityType.SHIELD, lane, y, "SHIELD", 0);
         }
 
+        static Entity boost(int lane, float y) {
+            return new Entity(EntityType.BOOST, lane, y, "BOOST", 0);
+        }
+
         RectF hitBox(HustleRushView view) {
             float scale = view.perspectiveScale(y);
-            float w = view.dp(type == EntityType.BILL ? 54f : 47f) * scale;
-            float h = view.dp(type == EntityType.BILL ? 48f : 44f) * scale;
+            float w = view.dp(type == EntityType.BILL ? 54f : type == EntityType.BOOST ? 50f : 47f) * scale;
+            float h = view.dp(type == EntityType.BILL ? 48f : type == EntityType.BOOST ? 48f : 44f) * scale;
             return new RectF(x - w / 2f, y - h / 2f, x + w / 2f, y + h / 2f);
         }
     }
