@@ -19,8 +19,8 @@ android {
         applicationId = "com.hustlerush.cashrunner"
         minSdk = 23
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.1.2"
+        versionCode = 7
+        versionName = "1.2.0"
     }
 
     signingConfigs {
@@ -59,4 +59,7 @@ android {
     }
 }
 
-dependencies { }
+dependencies {
+    implementation("com.google.android.gms:play-services-ads:25.4.0")
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
+}
