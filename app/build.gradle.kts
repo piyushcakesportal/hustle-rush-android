@@ -12,15 +12,15 @@ val hasReleaseSigning = !releaseKeystorePath.isNullOrBlank()
         && !releaseKeyPassword.isNullOrBlank()
 
 android {
-    namespace = "com.cakesportal.hustlerush"
+    namespace = "com.hustlerush.cashrunner"
     compileSdk = 36
 
     defaultConfig {
         applicationId = "com.hustlerush.cashrunner"
         minSdk = 23
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.1.1"
+        versionCode = 6
+        versionName = "1.1.2"
     }
 
     signingConfigs {
