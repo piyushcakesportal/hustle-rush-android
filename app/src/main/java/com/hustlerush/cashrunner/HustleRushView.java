@@ -1,4 +1,4 @@
-package com.cakesportal.hustlerush;
+package com.hustlerush.cashrunner;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -16,8 +16,6 @@ import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.WindowInsets;
-import android.view.WindowManager;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -26,14 +24,6 @@ import java.util.Locale;
 import java.util.Random;
 
 public final class HustleRushView extends View {
-    public interface AdHost {
-        boolean isRewardedAdReady();
-        void showRewardedContinue(Runnable onRewarded, Runnable onUnavailable);
-        void maybeShowInterstitial(Runnable afterAd);
-        boolean isPrivacyOptionsRequired();
-        void showPrivacyOptions();
-    }
-
     private enum Screen { MENU, HOW_TO, PRIVACY, PLAYING, PAUSED, GAME_OVER, LEVEL_COMPLETE }
     private enum EntityType { CASH, BILL, SHIELD }
 
@@ -63,7 +53,6 @@ public final class HustleRushView extends View {
     private final SharedPreferences preferences;
     private final Vibrator vibrator;
     private final ToneGenerator toneGenerator;
-    private final AdHost adHost;
 
     private final RectF primaryButton = new RectF();
     private final RectF secondaryLeftButton = new RectF();
@@ -74,7 +63,6 @@ public final class HustleRushView extends View {
     private final RectF homeButton = new RectF();
     private final RectF levelLeftButton = new RectF();
     private final RectF levelRightButton = new RectF();
-    private final RectF privacyOptionsButton = new RectF();
 
     private Screen screen = Screen.MENU;
     private int topInset;
@@ -110,7 +98,6 @@ public final class HustleRushView extends View {
     private int levelCompleteStars;
     private boolean soundEnabled;
     private boolean hapticEnabled;
-    private boolean rewardedContinueUsed;
     private boolean firstFrame = true;
 
     private final int backgroundTop = Color.rgb(15, 17, 41);
@@ -128,9 +115,8 @@ public final class HustleRushView extends View {
     private final int road = Color.rgb(22, 25, 46);
     private final int roadLine = Color.rgb(80, 85, 122);
 
-    public HustleRushView(Context context, AdHost adHost) {
+    public HustleRushView(Context context) {
         super(context);
-        this.adHost = adHost;
         density = getResources().getDisplayMetrics().density;
         preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         allTimeBest = preferences.getInt(PREF_BEST, 0);
@@ -148,14 +134,8 @@ public final class HustleRushView extends View {
         setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
         setOnApplyWindowInsetsListener((v, insets) -> {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
-                topInset = bars.top;
-                bottomInset = bars.bottom;
-            } else {
-                topInset = insets.getStableInsetTop();
-                bottomInset = insets.getStableInsetBottom();
-            }
+            topInset = insets.getStableInsetTop();
+            bottomInset = insets.getStableInsetBottom();
             requestLayout();
             return insets;
         });
@@ -420,7 +400,6 @@ public final class HustleRushView extends View {
         collectedCount = 0;
         billsPaid = 0;
         shieldCharges = 0;
-        rewardedContinueUsed = false;
         activeLevel = selectedLevel;
         spawnTimer = 0.45f;
         speed = dp(235f);
@@ -429,24 +408,6 @@ public final class HustleRushView extends View {
         updatePlayerGeometry();
         playerX = laneCenter(playerLane, playerY);
         playerTargetX = playerX;
-        screen = Screen.PLAYING;
-        setKeepScreenOn(true);
-        firstFrame = true;
-        invalidate();
-    }
-
-    private void continueAfterReward() {
-        if (screen != Screen.GAME_OVER || rewardedContinueUsed) return;
-        rewardedContinueUsed = true;
-        cash = STARTING_CASH;
-        runPeak = Math.max(runPeak, cash);
-        shieldCharges = Math.max(1, shieldCharges);
-        combo = 1;
-        comboTimer = 0f;
-        entities.clear();
-        particles.clear();
-        floatingTexts.clear();
-        spawnTimer = 0.85f;
         screen = Screen.PLAYING;
         setKeepScreenOn(true);
         firstFrame = true;
@@ -885,17 +846,11 @@ public final class HustleRushView extends View {
         drawText(canvas, "All-time best", left + dp(28f), detailsY + dp(56f), dp(12.5f), textMuted, false, Paint.Align.LEFT);
         drawText(canvas, "₹" + allTimeBest, card.right - dp(28f), detailsY + dp(56f), dp(13f), cashGreen, true, Paint.Align.RIGHT);
 
-        float buttonsTop = Math.min(bottom - dp(132f), detailsY + dp(76f));
-        primaryButton.set(left + dp(18f), buttonsTop, card.right - dp(18f), buttonsTop + dp(54f));
-        String continueLabel = rewardedContinueUsed ? "CONTINUE ALREADY USED"
-                : adHost.isRewardedAdReady() ? "WATCH AD & CONTINUE" : "CONTINUE AD LOADING";
-        drawGradientButton(canvas, primaryButton, continueLabel, "▶", cashGreen, Color.rgb(43, 177, 211));
-
-        float halfGap = dp(7f);
-        secondaryLeftButton.set(left + dp(18f), buttonsTop + dp(67f), width / 2f - halfGap, buttonsTop + dp(119f));
-        secondaryRightButton.set(width / 2f + halfGap, buttonsTop + dp(67f), card.right - dp(18f), buttonsTop + dp(119f));
-        drawOutlineButton(canvas, secondaryLeftButton, "RUN AGAIN", "↻");
-        drawOutlineButton(canvas, secondaryRightButton, "HOME", "⌂");
+        float buttonsTop = Math.min(bottom - dp(136f), detailsY + dp(82f));
+        primaryButton.set(left + dp(18f), buttonsTop, card.right - dp(18f), buttonsTop + dp(58f));
+        homeButton.set(left + dp(18f), buttonsTop + dp(72f), card.right - dp(18f), buttonsTop + dp(124f));
+        drawGradientButton(canvas, primaryButton, "RUN AGAIN", "↻", accent, accentLight);
+        drawOutlineButton(canvas, homeButton, "HOME", "⌂");
     }
 
     private void drawLevelCompleteOverlay(Canvas canvas) {
@@ -961,20 +916,9 @@ public final class HustleRushView extends View {
         y += dp(31f);
         drawBullet(canvas, x, y, "Sound and vibration settings");
         y += dp(48f);
-        drawText(canvas, "Hustle Rush uses Google AdMob to show ads. Google may process device identifiers, diagnostics and ad interaction data according to your consent choices and its privacy policies.", x, y, dp(13f), textMuted, false, Paint.Align.LEFT, card.width() - dp(40f));
-        y += dp(122f);
-        drawText(canvas, "Your controls", x, y, dp(14f), textPrimary, true, Paint.Align.LEFT);
-        y += dp(29f);
-        drawText(canvas, "No account is required. You can review advertising privacy choices when required in your region.", x, y, dp(13f), textMuted, false, Paint.Align.LEFT, card.width() - dp(40f));
-        y += dp(80f);
-        if (adHost.isPrivacyOptionsRequired()) {
-            privacyOptionsButton.set(x, y, card.right - dp(20f), y + dp(48f));
-            drawOutlineButton(canvas, privacyOptionsButton, "AD PRIVACY OPTIONS", "i");
-            y += dp(72f);
-        } else {
-            privacyOptionsButton.setEmpty();
-        }
-        drawText(canvas, "Developer: Cakesportal", x, y, dp(12.5f), textMuted, false, Paint.Align.LEFT);
+        drawText(canvas, "This stability build has no advertising SDK, analytics, account system, location access or personal-data collection.", x, y, dp(13f), textMuted, false, Paint.Align.LEFT, card.width() - dp(40f));
+        y += dp(96f);
+        drawText(canvas, "Developer: Hustle Rush", x, y, dp(12.5f), textMuted, false, Paint.Align.LEFT);
     }
 
     private void drawBackHeader(Canvas canvas, String title, float top) {
@@ -1212,7 +1156,6 @@ public final class HustleRushView extends View {
             if (homeButton.contains(x, y)) screen = Screen.MENU;
         } else if (screen == Screen.PRIVACY) {
             if (homeButton.contains(x, y)) screen = Screen.MENU;
-            else if (privacyOptionsButton.contains(x, y)) adHost.showPrivacyOptions();
         } else if (screen == Screen.PAUSED) {
             if (primaryButton.contains(x, y)) {
                 screen = Screen.PLAYING;
@@ -1220,13 +1163,8 @@ public final class HustleRushView extends View {
                 firstFrame = true;
             } else if (homeButton.contains(x, y)) goHome();
         } else if (screen == Screen.GAME_OVER) {
-            if (primaryButton.contains(x, y) && !rewardedContinueUsed && adHost.isRewardedAdReady()) {
-                adHost.showRewardedContinue(this::continueAfterReward, this::onAdAvailabilityChanged);
-            } else if (secondaryLeftButton.contains(x, y)) {
-                adHost.maybeShowInterstitial(this::startRun);
-            } else if (secondaryRightButton.contains(x, y)) {
-                adHost.maybeShowInterstitial(this::goHomeAndInvalidate);
-            }
+            if (primaryButton.contains(x, y)) startRun();
+            else if (homeButton.contains(x, y)) goHome();
         } else if (screen == Screen.LEVEL_COMPLETE) {
             if (primaryButton.contains(x, y)) {
                 selectedLevel = Math.min(ENDLESS_INDEX, activeLevel + 1);
@@ -1249,15 +1187,6 @@ public final class HustleRushView extends View {
 
     private void saveSelectedLevel() {
         preferences.edit().putInt(PREF_SELECTED_LEVEL, selectedLevel).apply();
-    }
-
-    private void goHomeAndInvalidate() {
-        goHome();
-        invalidate();
-    }
-
-    public void onAdAvailabilityChanged() {
-        postInvalidateOnAnimation();
     }
 
     private void toggleSound() {

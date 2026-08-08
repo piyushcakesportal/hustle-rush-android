@@ -22,7 +22,7 @@ Native Android cash-survival runner updated with mission progression and AdMob m
 - Google Mobile Ads SDK: `25.4.0`
 - Google UMP SDK: `4.0.0`
 
-The Java namespace intentionally remains `com.cakesportal.hustlerush`; this does not change the Play package/application ID.
+The Java namespace and Play package/application ID use `com.hustlerush.cashrunner`.
 
 ## Build and test
 
