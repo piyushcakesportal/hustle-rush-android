@@ -2,12 +2,11 @@ name: Build Signed Play Bundle
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
 jobs:
   signed-release:
     runs-on: ubuntu-latest
@@ -53,20 +52,28 @@ jobs:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/hustle-rush-upload.jks"
 
-      - name: Build signed Android App Bundle
+      - name: Build signed internal APK and Play bundles
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/hustle-rush-upload.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:bundleRelease
+        run: gradle --no-daemon :app:assembleInternalRelease :app:bundleInternalRelease :app:bundleProductionRelease
 
-      - name: Verify signed bundle exists
-        run: test -f app/build/outputs/bundle/release/app-release.aab
-
-      - name: Upload signed AAB
+      - name: Upload signed internal test APK
         uses: actions/upload-artifact@v4
         with:
-          name: hustle-rush-play-console-aab
-          path: app/build/outputs/bundle/release/app-release.aab
-          if-no-files-found: error
+          name: debt-escape-internal-test-apk-vc8
+          path: app/build/outputs/apk/internal/release/app-internal-release.apk
+
+      - name: Upload signed internal Play bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: debt-escape-internal-test-aab-vc8
+          path: app/build/outputs/bundle/internalRelease/app-internal-release.aab
+
+      - name: Upload signed production Play bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: debt-escape-production-aab-vc9
+          path: app/build/outputs/bundle/productionRelease/app-production-release.aab

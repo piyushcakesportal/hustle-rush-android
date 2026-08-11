@@ -34,17 +34,19 @@ jobs:
         with:
           gradle-version: "8.13"
 
-      - name: Build debug APK and release AAB
-        run: gradle --no-daemon :app:assembleDebug :app:bundleRelease
+      - name: Build internal debug APK and both release bundles
+        run: gradle --no-daemon :app:assembleInternalDebug :app:bundleInternalRelease :app:bundleProductionRelease
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: hustle-rush-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/internal/debug/app-internal-debug.apk
 
-      - name: Upload unsigned release AAB
+      - name: Upload unsigned release AABs
         uses: actions/upload-artifact@v4
         with:
           name: hustle-rush-release-aab-unsigned
-          path: app/build/outputs/bundle/release/app-release.aab
+          path: |
+            app/build/outputs/bundle/internalRelease/app-internal-release.aab
+            app/build/outputs/bundle/productionRelease/app-production-release.aab
