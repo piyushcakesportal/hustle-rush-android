@@ -19,8 +19,28 @@ android {
         applicationId = "com.hustlerush.cashrunner"
         minSdk = 23
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.1.2"
+    }
+
+    flavorDimensions += "releaseMode"
+    productFlavors {
+        create("internal") {
+            dimension = "releaseMode"
+            versionCode = 8
+            versionName = "2.0.0-test"
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+            buildConfigField("boolean", "USE_TEST_ADS", "true")
+            buildConfigField("String", "REWARDED_UNIT_ID", "\"ca-app-pub-3940256099942544/5224354917\"")
+            buildConfigField("String", "INTERSTITIAL_UNIT_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
+        }
+        create("production") {
+            dimension = "releaseMode"
+            versionCode = 9
+            versionName = "2.0.0"
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-8512097229727629~4157317521"
+            buildConfigField("boolean", "USE_TEST_ADS", "false")
+            buildConfigField("String", "REWARDED_UNIT_ID", "\"ca-app-pub-8512097229727629/6574376119\"")
+            buildConfigField("String", "INTERSTITIAL_UNIT_ID", "\"ca-app-pub-8512097229727629/3171538913\"")
+        }
     }
 
     signingConfigs {
@@ -59,4 +79,7 @@ android {
     }
 }
 
-dependencies { }
+dependencies {
+    implementation("com.google.android.gms:play-services-ads:25.4.0")
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
+}
